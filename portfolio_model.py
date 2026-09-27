@@ -475,6 +475,46 @@ def investor_lambda(age, risk_profile, horizon):
 
     return float(base * age_multiplier * horizon_multiplier)
 
+
+def age_cap_multiplier(age):
+    """
+    Scale the per-stock weight cap (PROFILE_MAX_WEIGHT) by age.
+
+    With a fixed cap, every risk profile is forced to spread across roughly
+    1/max_weight stocks to reach 100%, and the top stocks by expected
+    return tend to cluster fairly close together -- so changing lambda
+    alone barely moves *total* portfolio return, only *which* similar-return
+    stocks fill out the cap. Loosening the cap for younger investors lets
+    them concentrate more into fewer, higher-return names, which is what
+    actually moves the headline expected-return number with age. Older
+    investors get a tighter cap than the profile default, forcing broader
+    diversification on top of their higher lambda.
+
+    Anchored at:
+      18 -> 1.60x
+      25 -> 1.35x
+      35 -> 1.10x
+      45 -> 1.00x
+      55 -> 0.85x
+      65 -> 0.70x
+      75+ -> 0.60x
+    """
+    age = float(np.clip(age, 18, 100))
+    age_points = np.array([18, 25, 35, 45, 55, 65, 75, 100], dtype=float)
+    cap_multipliers = np.array([1.60, 1.35, 1.10, 1.00, 0.85, 0.70, 0.60, 0.60], dtype=float)
+    return float(np.interp(age, age_points, cap_multipliers))
+
+
+def effective_max_weight(profile_max_weight, age, n_assets):
+    """
+    Apply age_cap_multiplier to a profile's base cap, keeping the result
+    feasible (n_assets * cap must stay >= 1) and within sane bounds so a
+    young investor doesn't get pushed into single-stock concentration.
+    """
+    raw = profile_max_weight * age_cap_multiplier(age)
+    min_feasible = 1.05 / max(n_assets, 1)
+    return float(np.clip(raw, max(min_feasible, 0.02), 0.35))
+
 def portfolio_objective(w, expected, cov, lam):
     """
     Risk-adjusted portfolio score.
@@ -721,22 +761,27 @@ def personalize(age, risk_profile, horizon, amount):
     expected = analytics["expected_return"].to_numpy(dtype=float)
     cov = cache["covariance"]
 
-    # Risk profile changes both the risk-aversion coefficient and the
-    # maximum concentration permitted in any individual stock.
+    # Risk profile sets a baseline cap; age loosens it for younger
+    # investors and tightens it for older ones (see effective_max_weight),
+    # since the flat cap alone was masking age's effect on total return.
+    max_weight = effective_max_weight(profile_max_weight, age, len(expected))
+
     best_w, optimization_score = optimize_personalized_portfolio(
         expected,
         cov,
         lam,
-        max_weight=profile_max_weight,
+        max_weight=max_weight,
     )
 
     out = analytics.copy()
     out["weight"] = best_w
     out["allocation_inr"] = best_w * float(amount)
 
-    # Use candidates generated with the same profile-specific cap as the
-    # actual optimizer. This avoids matching a Low/Medium portfolio against
-    # candidates that violate its concentration limit.
+    # Use candidates generated with the same profile-specific cap as a rough
+    # comparison surface. These were built at the flat profile cap (not the
+    # age-adjusted one), so treat "nearest candidate" as an approximate
+    # reference point on the scatter plot, not an exact match -- the actual
+    # weights and return above come from the age-adjusted optimization.
     candidate_weights_by_profile = cache.get("candidate_weights_by_profile")
     candidate_stats_by_profile = cache.get("candidate_stats_by_profile")
     if candidate_weights_by_profile and candidate_stats_by_profile:
@@ -772,7 +817,7 @@ def personalize(age, risk_profile, horizon, amount):
         "age": float(age),
         "risk_profile": str(risk_profile),
         "horizon": float(horizon),
-        "max_weight": float(profile_max_weight),
+        "max_weight": float(max_weight),
         "expected_return": float(selected_mc["expected_return"]),
         "volatility": float(selected_mc["volatility"]),
         "var_95": float(selected_mc["var_95"]),
