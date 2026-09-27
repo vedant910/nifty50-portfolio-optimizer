@@ -1,5 +1,6 @@
 from pathlib import Path
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -13,76 +14,147 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# GLOBAL STYLES — desktop-first, with @media overrides for phones/tablets.
-# Breakpoints: <= 768px (tablet/phone), <= 480px (small phone).
+# DEVICE DETECTION
+#
+# Streamlit renders server-side, so there is no native way to read the
+# browser's viewport width in Python. The standard workaround: inject a tiny
+# script that measures window.innerWidth once, writes it into the URL as a
+# query param, and reloads. After that one reload, `?view=...` is already in
+# the URL, so no further redirect happens on subsequent interactions.
+#
+# A manual override in the sidebar is provided as a reliable fallback in case
+# auto-detection is ever wrong (e.g. a tablet in landscape, or a host that
+# blocks the redirect script).
 # ---------------------------------------------------------------------------
-st.markdown("""
-<style>
+MOBILE_BREAKPOINT_PX = 768
+
+query_params = st.query_params
+if "view" not in query_params:
+    components.html(
+        f"""
+        <script>
+        const width = window.innerWidth;
+        const view = width < {MOBILE_BREAKPOINT_PX} ? "mobile" : "desktop";
+        const url = new URL(window.parent.location);
+        url.searchParams.set("view", view);
+        window.parent.location.replace(url.toString());
+        </script>
+        """,
+        height=0,
+    )
+    st.stop()
+
+detected_view = query_params.get("view", "desktop")
+
+with st.sidebar:
+    st.markdown("## Investor Profile")
+    layout_choice = st.radio(
+        "Layout",
+        ["Auto", "Desktop", "Mobile"],
+        horizontal=True,
+        help="Auto uses your detected screen size. Override it here to preview either layout.",
+    )
+    st.markdown("---")
+
+if layout_choice == "Desktop":
+    IS_MOBILE = False
+elif layout_choice == "Mobile":
+    IS_MOBILE = True
+else:
+    IS_MOBILE = detected_view == "mobile"
+
+# ---------------------------------------------------------------------------
+# STYLES — two separate blocks, not one scaled-down version of the other.
+# ---------------------------------------------------------------------------
+FONT_IMPORT = """
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+"""
 
-.stApp { background:#14161B; color:#E7E5DE; }
-.stApp, .stApp p, .stApp span, .stApp label, .stApp div { font-family: -apple-system, "Segoe UI", sans-serif; }
-[data-testid="stSidebar"] { background:#191B21; border-right:1px solid #2A2D35; }
+DESKTOP_CSS = f"""
+<style>
+{FONT_IMPORT}
+.stApp {{ background:#14161B; color:#E7E5DE; }}
+.stApp, .stApp p, .stApp span, .stApp label, .stApp div {{ font-family: -apple-system, "Segoe UI", sans-serif; }}
+[data-testid="stSidebar"] {{ background:#191B21; border-right:1px solid #2A2D35; }}
+.block-container {{ padding-left: 3rem; padding-right: 3rem; }}
 
-/* Tighten Streamlit's own outer padding on small screens so content isn't cramped */
-.block-container { padding-left: 3rem; padding-right: 3rem; }
+.ledger-head {{ border-bottom:1px solid #3A3D46; padding-bottom:22px; margin-bottom:6px; }}
+.ledger-head .kicker {{ color:#B8872E; font-size:13px; letter-spacing:.2px; margin-bottom:10px; }}
+.ledger-head h1 {{
+    font-family:"Source Serif 4", Georgia, serif; font-weight:600; font-size:42px;
+    line-height:1.12; margin:0 0 14px 0; color:#F2F0E9;
+}}
+.ledger-head p {{ color:#A9A69C; font-size:16px; max-width:640px; line-height:1.5; margin:0; }}
 
-.ledger-head { border-bottom:1px solid #3A3D46; padding-bottom:22px; margin-bottom:6px; }
-.ledger-head .kicker { color:#B8872E; font-size:13px; letter-spacing:.2px; margin-bottom:10px; }
-.ledger-head h1 {
-    font-family:"Source Serif 4", Georgia, serif; font-weight:600;
-    font-size:clamp(26px, 5vw, 42px);
-    line-height:1.15; margin:0 0 14px 0; color:#F2F0E9;
-}
-.ledger-head p { color:#A9A69C; font-size:clamp(14px, 2.6vw, 16px); max-width:640px; line-height:1.5; margin:0; }
+.pipeline {{ margin-top:26px; }}
+.pipeline-row {{ display:flex; gap:0; border-top:1px solid #2A2D35; padding:16px 0; }}
+.pipeline-row:last-child {{ border-bottom:1px solid #2A2D35; }}
+.pipeline-num {{ font-family:"IBM Plex Mono", monospace; color:#1F7A53; font-size:14px; width:34px; flex-shrink:0; padding-top:2px; }}
+.pipeline-body b {{ color:#F2F0E9; font-weight:600; }}
+.pipeline-body p {{ color:#A9A69C; font-size:14px; margin:4px 0 0 0; line-height:1.5; }}
 
-.pipeline { margin-top:26px; }
-.pipeline-row { display:flex; gap:12px; border-top:1px solid #2A2D35; padding:16px 0; align-items:flex-start; }
-.pipeline-row:last-child { border-bottom:1px solid #2A2D35; }
-.pipeline-num { font-family:"IBM Plex Mono", monospace; color:#1F7A53; font-size:14px; width:28px; flex-shrink:0; padding-top:2px; }
-.pipeline-body { min-width:0; }
-.pipeline-body b { color:#F2F0E9; font-weight:600; font-size:clamp(14px, 2.6vw, 16px); }
-.pipeline-body p { color:#A9A69C; font-size:clamp(12.5px, 2.4vw, 14px); margin:4px 0 0 0; line-height:1.5; word-wrap:break-word; }
-
-.stat { border-left:2px solid #1F7A53; padding:2px 0 2px 14px; margin-bottom:14px; }
-.stat .label { color:#8B8880; font-size:12px; }
-.stat .value {
-    font-family:"IBM Plex Mono", monospace; color:#F2F0E9;
-    font-size:clamp(17px, 3.6vw, 24px);
+.stat {{ border-left:2px solid #1F7A53; padding:2px 0 2px 14px; }}
+.stat .label {{ color:#8B8880; font-size:12px; }}
+.stat .value {{
+    font-family:"IBM Plex Mono", monospace; color:#F2F0E9; font-size:24px;
     font-weight:600; margin-top:4px; font-variant-numeric: tabular-nums;
-    overflow-wrap:break-word;
-}
+}}
 
-.section-title {
-    font-family:"Source Serif 4", Georgia, serif;
-    font-size:clamp(18px, 3.6vw, 22px);
-    font-weight:600; color:#F2F0E9; border-bottom:1px solid #2A2D35;
-    padding-bottom:10px; margin:32px 0 16px 0;
-}
-.note-block { color:#A9A69C; font-size:13px; line-height:1.6; }
-
-/* Make sure any wide element (tables etc.) scrolls horizontally instead of
-   overflowing the viewport and forcing the whole page to scroll sideways. */
-[data-testid="stDataFrame"], [data-testid="stTable"] { overflow-x: auto; }
-
-/* --- Tablet / large phone --- */
-@media (max-width: 768px) {
-    .block-container { padding-left: 1.1rem; padding-right: 1.1rem; padding-top: 1.5rem; }
-    .ledger-head { padding-bottom:16px; }
-    .stat { padding-left:10px; margin-bottom:10px; }
-    .section-title { margin:24px 0 12px 0; }
-}
-
-/* --- Small phone --- */
-@media (max-width: 480px) {
-    .block-container { padding-left: 0.85rem; padding-right: 0.85rem; }
-    .ledger-head .kicker { font-size:11.5px; }
-    .pipeline-row { padding:12px 0; gap:8px; }
-    .pipeline-num { width:22px; font-size:12.5px; }
-}
+.section-title {{
+    font-family:"Source Serif 4", Georgia, serif; font-size:22px; font-weight:600;
+    color:#F2F0E9; border-bottom:1px solid #2A2D35; padding-bottom:10px; margin:32px 0 16px 0;
+}}
+.note-block {{ color:#A9A69C; font-size:13px; line-height:1.6; }}
 </style>
-""", unsafe_allow_html=True)
+"""
 
+MOBILE_CSS = f"""
+<style>
+{FONT_IMPORT}
+.stApp {{ background:#14161B; color:#E7E5DE; }}
+.stApp, .stApp p, .stApp span, .stApp label, .stApp div {{ font-family: -apple-system, "Segoe UI", sans-serif; }}
+[data-testid="stSidebar"] {{ background:#191B21; border-right:1px solid #2A2D35; }}
+.block-container {{ padding-left: 0.9rem; padding-right: 0.9rem; padding-top: 1.25rem; }}
+
+.ledger-head {{ border-bottom:1px solid #3A3D46; padding-bottom:14px; margin-bottom:4px; }}
+.ledger-head .kicker {{ color:#B8872E; font-size:11.5px; letter-spacing:.2px; margin-bottom:8px; }}
+.ledger-head h1 {{
+    font-family:"Source Serif 4", Georgia, serif; font-weight:600; font-size:26px;
+    line-height:1.2; margin:0 0 10px 0; color:#F2F0E9;
+}}
+.ledger-head p {{ color:#A9A69C; font-size:14px; line-height:1.5; margin:0; }}
+
+.pipeline {{ margin-top:16px; }}
+.pipeline-row {{ display:flex; gap:8px; border-top:1px solid #2A2D35; padding:12px 0; align-items:flex-start; }}
+.pipeline-row:last-child {{ border-bottom:1px solid #2A2D35; }}
+.pipeline-num {{ font-family:"IBM Plex Mono", monospace; color:#1F7A53; font-size:12.5px; width:22px; flex-shrink:0; padding-top:2px; }}
+.pipeline-body {{ min-width:0; }}
+.pipeline-body b {{ color:#F2F0E9; font-weight:600; font-size:14px; }}
+.pipeline-body p {{ color:#A9A69C; font-size:12.5px; margin:4px 0 0 0; line-height:1.5; word-wrap:break-word; }}
+
+.stat {{ border-left:2px solid #1F7A53; padding:2px 0 2px 10px; margin-bottom:10px; }}
+.stat .label {{ color:#8B8880; font-size:11px; }}
+.stat .value {{
+    font-family:"IBM Plex Mono", monospace; color:#F2F0E9; font-size:18px;
+    font-weight:600; margin-top:3px; font-variant-numeric: tabular-nums;
+    overflow-wrap:break-word;
+}}
+
+.section-title {{
+    font-family:"Source Serif 4", Georgia, serif; font-size:17px; font-weight:600;
+    color:#F2F0E9; border-bottom:1px solid #2A2D35; padding-bottom:8px; margin:22px 0 12px 0;
+}}
+.note-block {{ color:#A9A69C; font-size:12px; line-height:1.55; }}
+
+[data-testid="stDataFrame"], [data-testid="stTable"] {{ overflow-x: auto; }}
+</style>
+"""
+
+st.markdown(MOBILE_CSS if IS_MOBILE else DESKTOP_CSS, unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# HEADER
+# ---------------------------------------------------------------------------
 st.markdown("""
 <div class="ledger-head">
 <div class="kicker">Personalized equity allocation &middot; NSE / NIFTY 50</div>
@@ -92,8 +164,10 @@ thousands of simulated market paths, and solves for the weights that fit your ri
 </div>
 """, unsafe_allow_html=True)
 
+# ---------------------------------------------------------------------------
+# SIDEBAR INPUTS (shared — the same controls work fine on both layouts)
+# ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("## Investor Profile")
     age = st.number_input("Age", 18, 100, 22)
     risk_profile = st.selectbox("Risk profile", ["Low", "Medium", "High"], index=2)
     horizon = st.number_input("Investment horizon (years)", 1, 50, 7)
@@ -101,6 +175,7 @@ with st.sidebar:
     run = st.button("Generate Portfolio", type="primary", use_container_width=True)
     st.markdown("---")
     st.caption(f"Trained on 5 years of NIFTY 50 price history, {MC_PATHS:,} Monte Carlo paths per candidate.")
+    st.caption(f"Layout: **{'Mobile' if IS_MOBILE else 'Desktop'}** ({layout_choice.lower()})")
 
 cache_path = Path(__file__).resolve().parent / "data" / "model_cache.pkl"
 if not cache_path.exists():
@@ -134,19 +209,26 @@ except Exception as e:
 
 portfolio = result["portfolio"]
 stats = result["candidate_stats"].copy()
+shown = portfolio[portfolio["weight"] > 0.001].copy()
 
-# On phones, 4 stat columns squeeze into unreadably narrow strips. Streamlit
-# columns wrap to 2-per-row below its own internal breakpoint, but we help it
-# along by using 2 columns x 2 rows instead of 4 columns x 1 row — this keeps
-# each stat block wide enough to read on any screen without extra JS.
-r1c1, r1c2 = st.columns(2)
-r2c1, r2c2 = st.columns(2)
-for col, label, value in [
-    (r1c1, "Risk profile", risk_profile.upper()),
-    (r1c2, "Risk aversion λ", f'{result["lambda"]:.2f}'),
-    (r2c1, "Expected return", f'{result["expected_return"]:.2%}'),
-    (r2c2, "Portfolio volatility", f'{result["volatility"]:.2%}'),
-]:
+# ---------------------------------------------------------------------------
+# STAT ROW — one row of 4 on desktop, 2x2 on mobile
+# ---------------------------------------------------------------------------
+stat_items = [
+    ("Risk profile", risk_profile.upper()),
+    ("Risk aversion λ", f'{result["lambda"]:.2f}'),
+    ("Expected return", f'{result["expected_return"]:.2%}'),
+    ("Portfolio volatility", f'{result["volatility"]:.2%}'),
+]
+
+if IS_MOBILE:
+    row1 = st.columns(2)
+    row2 = st.columns(2)
+    cols = row1 + row2
+else:
+    cols = st.columns(4)
+
+for col, (label, value) in zip(cols, stat_items):
     with col:
         st.markdown(f'<div class="stat"><div class="label">{label}</div><div class="value">{value}</div></div>', unsafe_allow_html=True)
 
@@ -157,9 +239,10 @@ st.write(
     "and excessive concentration. A higher λ places more emphasis on reducing variance."
 )
 
-left, right = st.columns([1.35, 1])
-shown = portfolio[portfolio["weight"] > 0.001].copy()
-with left:
+# ---------------------------------------------------------------------------
+# ALLOCATION CHARTS — side-by-side on desktop, stacked on mobile
+# ---------------------------------------------------------------------------
+def bar_chart():
     fig = px.bar(
         shown.sort_values("weight"),
         x="weight", y="ticker", orientation="h", text="weight",
@@ -167,61 +250,96 @@ with left:
     )
     fig.update_traces(texttemplate="%{text:.1%}", textposition="outside")
     fig.update_layout(
-        height=max(420, min(650, 28 * len(shown))),
+        height=650 if not IS_MOBILE else max(360, min(560, 26 * len(shown))),
         margin=dict(l=10, r=50, t=15, b=15),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font_color="#E5E7EB", xaxis_tickformat=".0%",
-        font_size=12,
+        font_size=12 if IS_MOBILE else 13,
     )
-    st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
+    return fig
 
-with right:
+def pie_chart():
     fig2 = px.pie(shown, values="weight", names="ticker", hole=.58)
     fig2.update_layout(
-        height=480,
+        height=650 if not IS_MOBILE else 440,
         margin=dict(l=10, r=10, t=15, b=15),
         paper_bgcolor="rgba(0,0,0,0)", font_color="#E5E7EB",
-        legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-        font_size=12,
+        font_size=12 if IS_MOBILE else 13,
+        legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5) if IS_MOBILE else {},
     )
-    st.plotly_chart(fig2, use_container_width=True, config={"responsive": True})
+    return fig2
 
+if IS_MOBILE:
+    st.plotly_chart(bar_chart(), use_container_width=True, config={"responsive": True})
+    st.plotly_chart(pie_chart(), use_container_width=True, config={"responsive": True})
+else:
+    left, right = st.columns([1.35, 1])
+    with left:
+        st.plotly_chart(bar_chart(), use_container_width=True)
+    with right:
+        st.plotly_chart(pie_chart(), use_container_width=True)
+
+# ---------------------------------------------------------------------------
+# PORTFOLIO CONSTRUCTION NOTES — 3 columns on desktop, stacked on mobile
+# ---------------------------------------------------------------------------
 st.markdown('<div class="section-title">Portfolio construction</div>', unsafe_allow_html=True)
-cc1, cc2, cc3 = st.columns(3)
-for col, (title, body) in zip(
-    [cc1, cc2, cc3],
-    [
-        ("ML signal", "Random Forest probability contributes a modest return tilt to each stock."),
-        ("Risk penalty", "Portfolio variance is penalized according to the investor's risk profile."),
-        ("Diversification", f"No stock can exceed {result['max_weight']:.0%} for this risk profile, and the optimizer also penalizes concentration."),
-    ],
-):
-    with col:
+construction_items = [
+    ("ML signal", "Random Forest probability contributes a modest return tilt to each stock."),
+    ("Risk penalty", "Portfolio variance is penalized according to the investor's risk profile."),
+    ("Diversification", f"No stock can exceed {result['max_weight']:.0%} for this risk profile, and the optimizer also penalizes concentration."),
+]
+if IS_MOBILE:
+    for title, body in construction_items:
         st.markdown(f'<div class="stat"><div class="label">{title}</div><p class="note-block" style="margin-top:6px;">{body}</p></div>', unsafe_allow_html=True)
+else:
+    cc1, cc2, cc3 = st.columns(3)
+    for col, (title, body) in zip([cc1, cc2, cc3], construction_items):
+        with col:
+            st.markdown(f'<div class="stat"><div class="label">{title}</div><p class="note-block" style="margin-top:6px;">{body}</p></div>', unsafe_allow_html=True)
 
+# ---------------------------------------------------------------------------
+# STOCK-LEVEL TABLE — full table on desktop; trimmed table + expander on mobile
+# ---------------------------------------------------------------------------
 st.markdown('<div class="section-title">Stock-level analysis</div>', unsafe_allow_html=True)
-display = portfolio[[
+
+full_cols = [
     "ticker", "ml_probability", "mc_expected_return",
     "mc_volatility", "mc_var_95", "mc_es_95",
     "weight", "allocation_inr"
-]].copy()
-display.columns = [
+]
+full_names = [
     "Stock", "ML probability", "MC expected return",
     "MC volatility", "MC 5% outcome", "MC expected shortfall",
     "Weight", "Allocation"
 ]
-# use_container_width + the CSS overflow-x:auto rule above lets this table
-# scroll horizontally on narrow screens instead of forcing the page to.
-st.dataframe(display.style.format({
-    "ML probability": "{:.1%}",
-    "MC expected return": "{:.2%}",
-    "MC volatility": "{:.2%}",
-    "MC 5% outcome": "{:.2%}",
-    "MC expected shortfall": "{:.2%}",
-    "Weight": "{:.2%}",
+fmt_map = {
+    "ML probability": "{:.1%}", "MC expected return": "{:.2%}",
+    "MC volatility": "{:.2%}", "MC 5% outcome": "{:.2%}",
+    "MC expected shortfall": "{:.2%}", "Weight": "{:.2%}",
     "Allocation": "₹{:,.0f}",
-}), use_container_width=True, hide_index=True)
+}
 
+if IS_MOBILE:
+    slim_cols = ["ticker", "mc_expected_return", "weight", "allocation_inr"]
+    slim_names = ["Stock", "MC expected return", "Weight", "Allocation"]
+    slim = portfolio[slim_cols].copy()
+    slim.columns = slim_names
+    st.dataframe(
+        slim.style.format({k: v for k, v in fmt_map.items() if k in slim_names}),
+        use_container_width=True, hide_index=True,
+    )
+    with st.expander("Show full stock-level detail"):
+        display = portfolio[full_cols].copy()
+        display.columns = full_names
+        st.dataframe(display.style.format(fmt_map), use_container_width=True, hide_index=True)
+else:
+    display = portfolio[full_cols].copy()
+    display.columns = full_names
+    st.dataframe(display.style.format(fmt_map), use_container_width=True, hide_index=True)
+
+# ---------------------------------------------------------------------------
+# RISK-RETURN SCATTER
+# ---------------------------------------------------------------------------
 st.markdown('<div class="section-title">Risk–return map of candidate portfolios</div>', unsafe_allow_html=True)
 plot_stats = stats.copy()
 plot_stats["Selected candidate"] = plot_stats["is_selected"].map({True: "Nearest candidate", False: "Candidate"})
@@ -235,15 +353,18 @@ fig3 = px.scatter(
     labels={"volatility": "Simulated volatility", "expected_return": "Simulated expected return"},
 )
 fig3.update_layout(
-    height=420,
+    height=420 if IS_MOBILE else 500,
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
     font_color="#E5E7EB",
-    font_size=12,
-    legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
+    font_size=12 if IS_MOBILE else 13,
+    legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5) if IS_MOBILE else {},
 )
 st.plotly_chart(fig3, use_container_width=True, config={"responsive": True})
 
+# ---------------------------------------------------------------------------
+# METHODOLOGY
+# ---------------------------------------------------------------------------
 st.markdown('<div class="section-title">How this portfolio was built</div>', unsafe_allow_html=True)
 st.markdown(f"""
 1. **Random Forest:** estimates the probability that each stock beats NIFTY 50 over the next {20} trading sessions.
