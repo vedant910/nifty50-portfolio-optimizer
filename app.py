@@ -45,7 +45,7 @@ with st.sidebar:
     risk_profile = st.selectbox("Risk profile", ["Low", "Medium", "High"], index=2)
     horizon = st.number_input("Investment horizon (years)", 1, 50, 7)
     amount = st.number_input("Investment amount (₹)", 10000, 100000000, 500000, step=10000)
-    run = st.button("🚀 Generate AI Portfolio", type="primary", use_container_width=True)
+    run = st.button("Generate Portfolio", type="primary", use_container_width=True)
     st.markdown("---")
     st.caption(f"5 years • NIFTY 50 • Random Forest • {MC_PATHS:,} Monte Carlo paths")
 
