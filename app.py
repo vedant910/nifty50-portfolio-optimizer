@@ -1,6 +1,5 @@
 from pathlib import Path
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -14,54 +13,31 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# DEVICE DETECTION
+# LAYOUT SELECTION
 #
 # Streamlit renders server-side, so there is no native way to read the
-# browser's viewport width in Python. The standard workaround: inject a tiny
-# script that measures window.innerWidth once, writes it into the URL as a
-# query param, and reloads. After that one reload, `?view=...` is already in
-# the URL, so no further redirect happens on subsequent interactions.
+# browser's viewport width in Python. A previous version of this app tried
+# to detect it via a JS redirect (measuring window.innerWidth, writing it
+# into the URL, then reloading). That approach relies on
+# `window.parent.location.replace(...)` succeeding inside an iframe, which
+# many hosts (including Streamlit Community Cloud) block for security
+# reasons — when blocked, the redirect silently never happens and the app
+# is stuck at `st.stop()` forever, rendering as a blank page.
 #
-# A manual override in the sidebar is provided as a reliable fallback in case
-# auto-detection is ever wrong (e.g. a tablet in landscape, or a host that
-# blocks the redirect script).
+# Instead, default to Desktop and let the user pick Mobile from the
+# sidebar. This is fully reliable and costs one click for mobile visitors.
 # ---------------------------------------------------------------------------
-MOBILE_BREAKPOINT_PX = 768
-
-query_params = st.query_params
-if "view" not in query_params:
-    components.html(
-        f"""
-        <script>
-        const width = window.innerWidth;
-        const view = width < {MOBILE_BREAKPOINT_PX} ? "mobile" : "desktop";
-        const url = new URL(window.parent.location);
-        url.searchParams.set("view", view);
-        window.parent.location.replace(url.toString());
-        </script>
-        """,
-        height=0,
-    )
-    st.stop()
-
-detected_view = query_params.get("view", "desktop")
-
 with st.sidebar:
     st.markdown("## Investor Profile")
     layout_choice = st.radio(
         "Layout",
-        ["Auto", "Desktop", "Mobile"],
+        ["Desktop", "Mobile"],
         horizontal=True,
-        help="Auto uses your detected screen size. Override it here to preview either layout.",
+        help="Pick Mobile if you're viewing this on a phone or narrow screen.",
     )
     st.markdown("---")
 
-if layout_choice == "Desktop":
-    IS_MOBILE = False
-elif layout_choice == "Mobile":
-    IS_MOBILE = True
-else:
-    IS_MOBILE = detected_view == "mobile"
+IS_MOBILE = layout_choice == "Mobile"
 
 # ---------------------------------------------------------------------------
 # STYLES — two separate blocks, not one scaled-down version of the other.
@@ -175,7 +151,7 @@ with st.sidebar:
     run = st.button("Generate Portfolio", type="primary", use_container_width=True)
     st.markdown("---")
     st.caption(f"Trained on 5 years of NIFTY 50 price history, {MC_PATHS:,} Monte Carlo paths per candidate.")
-    st.caption(f"Layout: **{'Mobile' if IS_MOBILE else 'Desktop'}** ({layout_choice.lower()})")
+    st.caption(f"Layout: **{layout_choice}**")
 
 cache_path = Path(__file__).resolve().parent / "data" / "model_cache.pkl"
 if not cache_path.exists():
