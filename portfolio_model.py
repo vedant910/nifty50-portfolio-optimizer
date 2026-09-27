@@ -486,12 +486,21 @@ def portfolio_objective(w, expected, cov, lam):
     downside_penalty = DOWNSIDE_PENALTY_RATIO * lam * downside_proxy
     concentration = float(np.sum(w ** 2))
 
+    # Scale the concentration penalty by lambda (relative to the Medium
+    # baseline) so it moves with age/horizon the same way the other risk
+    # terms do. Without this, CONCENTRATION_PENALTY was a flat constant that
+    # didn't respond to lam at all, which diluted age's effect on the
+    # optimizer -- especially for the High risk profile, where the base
+    # lambda is small and age's multiplicative swing (0.6x-2.0x) barely
+    # moved the objective relative to this fixed term.
+    concentration_penalty = CONCENTRATION_PENALTY * (lam / RISK_LAMBDA["Medium"]) * concentration
+
     score = (
         portfolio_return
         - lam * portfolio_vol
         - downside_penalty
         - INDIVIDUAL_VOL_PENALTY * lam * weighted_stock_vol
-        - CONCENTRATION_PENALTY * concentration
+        - concentration_penalty
     )
     return score
 
