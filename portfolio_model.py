@@ -437,13 +437,24 @@ def investor_lambda(age, risk_profile, horizon):
     change in the optimizer's risk preference.
 
     The age multiplier is anchored at:
-      18 -> 0.60x
-      25 -> 0.75x
-      35 -> 0.95x
+      18 -> 0.35x
+      25 -> 0.55x
+      35 -> 0.90x
       45 -> 1.15x
       55 -> 1.40x
       65 -> 1.70x
       75+ -> 2.00x
+
+    The young end (18-35) was widened from an earlier 0.60x-0.95x range:
+    at the High risk profile, lambda was already small enough that the
+    optimizer just spread the same capped, top-return stocks around rather
+    than chasing return harder, so young and old investors ended up with
+    near-identical expected returns despite different weights. Pushing
+    lambda lower at the young end makes the risk terms in the objective
+    (portfolio volatility, downside proxy, individual-stock volatility,
+    concentration -- see portfolio_objective) small enough relative to the
+    return term that a 20-something's portfolio visibly favors higher
+    expected return, not just a different mix at the same return.
 
     Horizon is a secondary adjustment:
       1 year -> 1.10x
@@ -456,7 +467,7 @@ def investor_lambda(age, risk_profile, horizon):
     horizon = float(np.clip(horizon, 1, 50))
 
     age_points = np.array([18, 25, 35, 45, 55, 65, 75, 100], dtype=float)
-    age_multipliers = np.array([0.60, 0.75, 0.95, 1.15, 1.40, 1.70, 2.00, 2.00], dtype=float)
+    age_multipliers = np.array([0.35, 0.55, 0.90, 1.15, 1.40, 1.70, 2.00, 2.00], dtype=float)
     age_multiplier = float(np.interp(age, age_points, age_multipliers))
 
     horizon_multiplier = 1.10 - 0.20 * ((horizon - 1.0) / 39.0)
