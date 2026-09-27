@@ -14,28 +14,42 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-.stApp { background:#070B14; color:#F4F7FB; }
-[data-testid="stSidebar"] { background:#0B1120; border-right:1px solid #1E293B; }
-.hero { padding:34px 38px; border:1px solid #1E293B; border-radius:22px;
-background:linear-gradient(135deg,#0E172A 0%,#101B32 55%,#0B1222 100%); margin-bottom:24px; }
-.eyebrow { color:#60A5FA; font-size:13px; font-weight:800; letter-spacing:1.8px; text-transform:uppercase; }
-.hero h1 { font-size:44px; margin:8px 0; line-height:1.04; }
-.hero p { color:#A9B4C7; font-size:16px; max-width:900px; }
-.card { background:#0E1627; border:1px solid #1E293B; border-radius:16px; padding:18px; }
-.label { color:#94A3B8; font-size:11px; text-transform:uppercase; letter-spacing:1px; }
-.value { color:#F8FAFC; font-size:27px; font-weight:800; margin-top:5px; }
-.small { color:#94A3B8; font-size:13px; }
-.badge { display:inline-block; padding:6px 12px; border-radius:999px; background:#172554;
-color:#93C5FD; font-size:12px; font-weight:700; letter-spacing:.4px; }
-.section { margin-top:28px; margin-bottom:12px; }
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+.stApp { background:#14161B; color:#E7E5DE; }
+.stApp, .stApp p, .stApp span, .stApp label, .stApp div { font-family: -apple-system, "Segoe UI", sans-serif; }
+[data-testid="stSidebar"] { background:#191B21; border-right:1px solid #2A2D35; }
+
+.ledger-head { border-bottom:1px solid #3A3D46; padding-bottom:22px; margin-bottom:6px; }
+.ledger-head .kicker { color:#B8872E; font-size:13px; letter-spacing:.2px; margin-bottom:10px; }
+.ledger-head h1 { font-family:"Source Serif 4", Georgia, serif; font-weight:600; font-size:42px;
+line-height:1.12; margin:0 0 14px 0; color:#F2F0E9; }
+.ledger-head p { color:#A9A69C; font-size:16px; max-width:640px; line-height:1.5; margin:0; }
+
+.pipeline { margin-top:26px; }
+.pipeline-row { display:flex; gap:0; border-top:1px solid #2A2D35; padding:16px 0; }
+.pipeline-row:last-child { border-bottom:1px solid #2A2D35; }
+.pipeline-num { font-family:"IBM Plex Mono", monospace; color:#1F7A53; font-size:14px; width:34px; flex-shrink:0; padding-top:2px; }
+.pipeline-body b { color:#F2F0E9; font-weight:600; }
+.pipeline-body p { color:#A9A69C; font-size:14px; margin:4px 0 0 0; line-height:1.5; }
+
+.stat { border-left:2px solid #1F7A53; padding:2px 0 2px 14px; }
+.stat .label { color:#8B8880; font-size:12px; }
+.stat .value { font-family:"IBM Plex Mono", monospace; color:#F2F0E9; font-size:24px;
+font-weight:600; margin-top:4px; font-variant-numeric: tabular-nums; }
+
+.section-title { font-family:"Source Serif 4", Georgia, serif; font-size:22px; font-weight:600;
+color:#F2F0E9; border-bottom:1px solid #2A2D35; padding-bottom:10px; margin:32px 0 16px 0; }
+.note-block { color:#A9A69C; font-size:13px; line-height:1.6; }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
-<div class="hero">
-<div class="eyebrow">AI × Monte Carlo × Personalization</div>
+<div class="ledger-head">
+<div class="kicker">Personalized equity allocation &middot; NSE / NIFTY 50</div>
 <h1>Personalized NIFTY 50<br>Portfolio Optimizer</h1>
-<p>Random Forest stock ranking + joint Monte Carlo simulation + investor risk profiling + continuous portfolio optimization.</p>
+<p>Ranks NIFTY 50 stocks with a Random Forest model, tests candidate allocations against
+thousands of simulated market paths, and solves for the weights that fit your risk profile.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -47,7 +61,7 @@ with st.sidebar:
     amount = st.number_input("Investment amount (₹)", 10000, 100000000, 500000, step=10000)
     run = st.button("Generate Portfolio", type="primary", use_container_width=True)
     st.markdown("---")
-    st.caption(f"5 years • NIFTY 50 • Random Forest • {MC_PATHS:,} Monte Carlo paths")
+    st.caption(f"Trained on 5 years of NIFTY 50 price history, {MC_PATHS:,} Monte Carlo paths per candidate.")
 
 cache_path = Path(__file__).resolve().parent / "data" / "model_cache.pkl"
 if not cache_path.exists():
@@ -56,17 +70,20 @@ if not cache_path.exists():
     st.stop()
 
 if not run:
-    cols = st.columns(4)
-    cards = [
-        ("01 · ML", "Random Forest estimates the probability of beating NIFTY over the next 20 trading sessions."),
-        ("02 · Monte Carlo", f"Each candidate portfolio is evaluated with {MC_PATHS:,} joint simulated paths."),
-        ("03 · Personalize", "Risk profile is converted into a variance penalty; age and horizon make secondary adjustments."),
-        ("04 · Optimize", "A continuous constrained optimizer selects the weights instead of simply filling stock limits."),
+    steps = [
+        ("Rank", "Random Forest estimates the probability each stock beats NIFTY over the next 20 trading sessions."),
+        ("Simulate", f"Every candidate allocation is tested against {MC_PATHS:,} joint simulated market paths."),
+        ("Personalize", "Risk profile sets the variance penalty and per-stock weight cap; age and horizon adjust it further."),
+        ("Solve", "A constrained optimizer finds the weights that fit your profile, rather than filling stock limits."),
     ]
-    for c, (h, b) in zip(cols, cards):
-        with c:
-            st.markdown(f'<div class="card"><b>{h}</b><p class="small">{b}</p></div>', unsafe_allow_html=True)
-    st.info("Enter the investor profile and click **Generate AI Portfolio**.")
+    rows = "".join(
+        f'<div class="pipeline-row"><div class="pipeline-num">{i:02d}</div>'
+        f'<div class="pipeline-body"><b>{title}</b><p>{body}</p></div></div>'
+        for i, (title, body) in enumerate(steps, 1)
+    )
+    st.markdown(f'<div class="pipeline">{rows}</div>', unsafe_allow_html=True)
+    st.write("")
+    st.info("Enter your investor profile on the left and click **Generate Portfolio**.")
     st.stop()
 
 try:
@@ -87,7 +104,7 @@ for col, label, value in [
     (c4, "Portfolio volatility", f'{result["volatility"]:.2%}'),
 ]:
     with col:
-        st.markdown(f'<div class="card"><div class="label">{label}</div><div class="value">{value}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="stat"><div class="label">{label}</div><div class="value">{value}</div></div>', unsafe_allow_html=True)
 
 st.markdown('<div class="section"><h3>Why this investor received these weights</h3></div>', unsafe_allow_html=True)
 st.write(
@@ -120,17 +137,20 @@ with right:
     )
     st.plotly_chart(fig2, use_container_width=True)
 
-st.markdown("### Portfolio construction")
+st.markdown('<div class="section-title">Portfolio construction</div>', unsafe_allow_html=True)
 cc1, cc2, cc3 = st.columns(3)
-for col, title, body in [
-    (cc1, "ML signal", "Random Forest probability contributes a modest return tilt to each stock."),
-    (cc2, "Risk penalty", "Portfolio variance is penalized according to the investor's risk profile."),
-    (cc3, "Diversification", f"No stock can exceed {result['max_weight']:.0%} for this risk profile, and the optimizer also penalizes concentration."),
-]:
+for col, (title, body) in zip(
+    [cc1, cc2, cc3],
+    [
+        ("ML signal", "Random Forest probability contributes a modest return tilt to each stock."),
+        ("Risk penalty", "Portfolio variance is penalized according to the investor's risk profile."),
+        ("Diversification", f"No stock can exceed {result['max_weight']:.0%} for this risk profile, and the optimizer also penalizes concentration."),
+    ],
+):
     with col:
-        st.markdown(f'<div class="card"><b>{title}</b><p class="small">{body}</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="stat"><div class="label">{title}</div><p class="note-block" style="margin-top:6px;">{body}</p></div>', unsafe_allow_html=True)
 
-st.markdown("### Stock-level AI analysis")
+st.markdown('<div class="section-title">Stock-level analysis</div>', unsafe_allow_html=True)
 display = portfolio[[
     "ticker", "ml_probability", "mc_expected_return",
     "mc_volatility", "mc_var_95", "mc_es_95",
@@ -151,7 +171,7 @@ st.dataframe(display.style.format({
     "Allocation": "₹{:,.0f}",
 }), use_container_width=True, hide_index=True)
 
-st.markdown("### Risk–return map of candidate portfolios")
+st.markdown('<div class="section-title">Risk–return map of candidate portfolios</div>', unsafe_allow_html=True)
 plot_stats = stats.copy()
 plot_stats["Selected candidate"] = plot_stats["is_selected"].map({True: "Nearest candidate", False: "Candidate"})
 fig3 = px.scatter(
@@ -171,7 +191,7 @@ fig3.update_layout(
 )
 st.plotly_chart(fig3, use_container_width=True)
 
-st.markdown("### Monte Carlo & personalization logic")
+st.markdown('<div class="section-title">How this portfolio was built</div>', unsafe_allow_html=True)
 st.markdown(f"""
 1. **Random Forest:** estimates the probability that each stock beats NIFTY 50 over the next {20} trading sessions.
 2. **Stock expected return:** combines the stock's Monte Carlo expected return with a modest ML probability tilt.
