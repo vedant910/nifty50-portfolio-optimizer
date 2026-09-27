@@ -12,6 +12,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ---------------------------------------------------------------------------
+# GLOBAL STYLES — desktop-first, with @media overrides for phones/tablets.
+# Breakpoints: <= 768px (tablet/phone), <= 480px (small phone).
+# ---------------------------------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@500;600&display=swap');
@@ -20,27 +24,62 @@ st.markdown("""
 .stApp, .stApp p, .stApp span, .stApp label, .stApp div { font-family: -apple-system, "Segoe UI", sans-serif; }
 [data-testid="stSidebar"] { background:#191B21; border-right:1px solid #2A2D35; }
 
+/* Tighten Streamlit's own outer padding on small screens so content isn't cramped */
+.block-container { padding-left: 3rem; padding-right: 3rem; }
+
 .ledger-head { border-bottom:1px solid #3A3D46; padding-bottom:22px; margin-bottom:6px; }
 .ledger-head .kicker { color:#B8872E; font-size:13px; letter-spacing:.2px; margin-bottom:10px; }
-.ledger-head h1 { font-family:"Source Serif 4", Georgia, serif; font-weight:600; font-size:42px;
-line-height:1.12; margin:0 0 14px 0; color:#F2F0E9; }
-.ledger-head p { color:#A9A69C; font-size:16px; max-width:640px; line-height:1.5; margin:0; }
+.ledger-head h1 {
+    font-family:"Source Serif 4", Georgia, serif; font-weight:600;
+    font-size:clamp(26px, 5vw, 42px);
+    line-height:1.15; margin:0 0 14px 0; color:#F2F0E9;
+}
+.ledger-head p { color:#A9A69C; font-size:clamp(14px, 2.6vw, 16px); max-width:640px; line-height:1.5; margin:0; }
 
 .pipeline { margin-top:26px; }
-.pipeline-row { display:flex; gap:0; border-top:1px solid #2A2D35; padding:16px 0; }
+.pipeline-row { display:flex; gap:12px; border-top:1px solid #2A2D35; padding:16px 0; align-items:flex-start; }
 .pipeline-row:last-child { border-bottom:1px solid #2A2D35; }
-.pipeline-num { font-family:"IBM Plex Mono", monospace; color:#1F7A53; font-size:14px; width:34px; flex-shrink:0; padding-top:2px; }
-.pipeline-body b { color:#F2F0E9; font-weight:600; }
-.pipeline-body p { color:#A9A69C; font-size:14px; margin:4px 0 0 0; line-height:1.5; }
+.pipeline-num { font-family:"IBM Plex Mono", monospace; color:#1F7A53; font-size:14px; width:28px; flex-shrink:0; padding-top:2px; }
+.pipeline-body { min-width:0; }
+.pipeline-body b { color:#F2F0E9; font-weight:600; font-size:clamp(14px, 2.6vw, 16px); }
+.pipeline-body p { color:#A9A69C; font-size:clamp(12.5px, 2.4vw, 14px); margin:4px 0 0 0; line-height:1.5; word-wrap:break-word; }
 
-.stat { border-left:2px solid #1F7A53; padding:2px 0 2px 14px; }
+.stat { border-left:2px solid #1F7A53; padding:2px 0 2px 14px; margin-bottom:14px; }
 .stat .label { color:#8B8880; font-size:12px; }
-.stat .value { font-family:"IBM Plex Mono", monospace; color:#F2F0E9; font-size:24px;
-font-weight:600; margin-top:4px; font-variant-numeric: tabular-nums; }
+.stat .value {
+    font-family:"IBM Plex Mono", monospace; color:#F2F0E9;
+    font-size:clamp(17px, 3.6vw, 24px);
+    font-weight:600; margin-top:4px; font-variant-numeric: tabular-nums;
+    overflow-wrap:break-word;
+}
 
-.section-title { font-family:"Source Serif 4", Georgia, serif; font-size:22px; font-weight:600;
-color:#F2F0E9; border-bottom:1px solid #2A2D35; padding-bottom:10px; margin:32px 0 16px 0; }
+.section-title {
+    font-family:"Source Serif 4", Georgia, serif;
+    font-size:clamp(18px, 3.6vw, 22px);
+    font-weight:600; color:#F2F0E9; border-bottom:1px solid #2A2D35;
+    padding-bottom:10px; margin:32px 0 16px 0;
+}
 .note-block { color:#A9A69C; font-size:13px; line-height:1.6; }
+
+/* Make sure any wide element (tables etc.) scrolls horizontally instead of
+   overflowing the viewport and forcing the whole page to scroll sideways. */
+[data-testid="stDataFrame"], [data-testid="stTable"] { overflow-x: auto; }
+
+/* --- Tablet / large phone --- */
+@media (max-width: 768px) {
+    .block-container { padding-left: 1.1rem; padding-right: 1.1rem; padding-top: 1.5rem; }
+    .ledger-head { padding-bottom:16px; }
+    .stat { padding-left:10px; margin-bottom:10px; }
+    .section-title { margin:24px 0 12px 0; }
+}
+
+/* --- Small phone --- */
+@media (max-width: 480px) {
+    .block-container { padding-left: 0.85rem; padding-right: 0.85rem; }
+    .ledger-head .kicker { font-size:11.5px; }
+    .pipeline-row { padding:12px 0; gap:8px; }
+    .pipeline-num { width:22px; font-size:12.5px; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -96,12 +135,17 @@ except Exception as e:
 portfolio = result["portfolio"]
 stats = result["candidate_stats"].copy()
 
-c1, c2, c3, c4 = st.columns(4)
+# On phones, 4 stat columns squeeze into unreadably narrow strips. Streamlit
+# columns wrap to 2-per-row below its own internal breakpoint, but we help it
+# along by using 2 columns x 2 rows instead of 4 columns x 1 row — this keeps
+# each stat block wide enough to read on any screen without extra JS.
+r1c1, r1c2 = st.columns(2)
+r2c1, r2c2 = st.columns(2)
 for col, label, value in [
-    (c1, "Risk profile", risk_profile.upper()),
-    (c2, "Risk aversion λ", f'{result["lambda"]:.2f}'),
-    (c3, "Expected return", f'{result["expected_return"]:.2%}'),
-    (c4, "Portfolio volatility", f'{result["volatility"]:.2%}'),
+    (r1c1, "Risk profile", risk_profile.upper()),
+    (r1c2, "Risk aversion λ", f'{result["lambda"]:.2f}'),
+    (r2c1, "Expected return", f'{result["expected_return"]:.2%}'),
+    (r2c2, "Portfolio volatility", f'{result["volatility"]:.2%}'),
 ]:
     with col:
         st.markdown(f'<div class="stat"><div class="label">{label}</div><div class="value">{value}</div></div>', unsafe_allow_html=True)
@@ -123,19 +167,24 @@ with left:
     )
     fig.update_traces(texttemplate="%{text:.1%}", textposition="outside")
     fig.update_layout(
-        height=650, margin=dict(l=10, r=50, t=15, b=15),
+        height=max(420, min(650, 28 * len(shown))),
+        margin=dict(l=10, r=50, t=15, b=15),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font_color="#E5E7EB", xaxis_tickformat=".0%",
+        font_size=12,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
 
 with right:
     fig2 = px.pie(shown, values="weight", names="ticker", hole=.58)
     fig2.update_layout(
-        height=650, margin=dict(l=10, r=10, t=15, b=15),
+        height=480,
+        margin=dict(l=10, r=10, t=15, b=15),
         paper_bgcolor="rgba(0,0,0,0)", font_color="#E5E7EB",
+        legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
+        font_size=12,
     )
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, use_container_width=True, config={"responsive": True})
 
 st.markdown('<div class="section-title">Portfolio construction</div>', unsafe_allow_html=True)
 cc1, cc2, cc3 = st.columns(3)
@@ -161,6 +210,8 @@ display.columns = [
     "MC volatility", "MC 5% outcome", "MC expected shortfall",
     "Weight", "Allocation"
 ]
+# use_container_width + the CSS overflow-x:auto rule above lets this table
+# scroll horizontally on narrow screens instead of forcing the page to.
 st.dataframe(display.style.format({
     "ML probability": "{:.1%}",
     "MC expected return": "{:.2%}",
@@ -184,12 +235,14 @@ fig3 = px.scatter(
     labels={"volatility": "Simulated volatility", "expected_return": "Simulated expected return"},
 )
 fig3.update_layout(
-    height=500,
+    height=420,
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
     font_color="#E5E7EB",
+    font_size=12,
+    legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
 )
-st.plotly_chart(fig3, use_container_width=True)
+st.plotly_chart(fig3, use_container_width=True, config={"responsive": True})
 
 st.markdown('<div class="section-title">How this portfolio was built</div>', unsafe_allow_html=True)
 st.markdown(f"""
