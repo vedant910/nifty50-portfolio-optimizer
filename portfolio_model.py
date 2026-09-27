@@ -29,9 +29,11 @@ RISK_LAMBDA = {
     # Larger lambda = stronger penalty on portfolio risk.
     # These values are calibrated for annual returns/volatility expressed
     # in decimal units (e.g. 0.15 = 15%).
-    "Low": 0.70,
-    "Medium": 0.38,
-    "High": 0.10,
+    # Widened from {0.70, 0.38, 0.10} so the three profiles produce more
+    # clearly differentiated portfolios and expected returns.
+    "Low": 1.10,
+    "Medium": 0.40,
+    "High": 0.05,
 }
 
 # Downside penalty is proportional to risk aversion.
@@ -45,10 +47,13 @@ INDIVIDUAL_VOL_PENALTY = 0.15
 
 # Risk profiles also impose different concentration ceilings.
 # Lower-risk investors receive a tighter per-stock cap.
+# Widened from {0.06, 0.08, 0.10} for the same reason as RISK_LAMBDA above --
+# a tight cap for Low and a loose cap for High makes the profiles pull
+# apart in both risk-aversion and achievable concentration, not just one.
 PROFILE_MAX_WEIGHT = {
-    "Low": 0.06,
+    "Low": 0.045,
     "Medium": 0.08,
-    "High": 0.10,
+    "High": 0.14,
 }
 
 # Return-estimation controls. These shrink noisy individual-stock estimates
