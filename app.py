@@ -51,6 +51,8 @@ DESKTOP_CSS = f"""
 {FONT_IMPORT}
 .stApp {{ background:#14161B; color:#E7E5DE; }}
 .stApp, .stApp p, .stApp span, .stApp label, .stApp div {{ font-family: -apple-system, "Segoe UI", sans-serif; }}
+/* Keep Streamlit's icon font intact, otherwise icons render as raw text (e.g. "keyboard_double_arrow_left") */
+[data-testid="stIconMaterial"], [data-testid="stIconMaterial"] *, .material-icons, .material-symbols-rounded, span[class*="material"] {{ font-family: "Material Symbols Rounded", "Material Icons" !important; }}
 [data-testid="stSidebar"] {{ background:#191B21; border-right:1px solid #2A2D35; }}
 .block-container {{ padding-left: 3rem; padding-right: 3rem; }}
 
@@ -89,6 +91,8 @@ MOBILE_CSS = f"""
 {FONT_IMPORT}
 .stApp {{ background:#14161B; color:#E7E5DE; }}
 .stApp, .stApp p, .stApp span, .stApp label, .stApp div {{ font-family: -apple-system, "Segoe UI", sans-serif; }}
+/* Keep Streamlit's icon font intact, otherwise icons render as raw text (e.g. "keyboard_double_arrow_left") */
+[data-testid="stIconMaterial"], [data-testid="stIconMaterial"] *, .material-icons, .material-symbols-rounded, span[class*="material"] {{ font-family: "Material Symbols Rounded", "Material Icons" !important; }}
 [data-testid="stSidebar"] {{ background:#191B21; border-right:1px solid #2A2D35; }}
 .block-container {{ padding-left: 0.9rem; padding-right: 0.9rem; padding-top: 1.25rem; }}
 
